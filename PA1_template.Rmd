@@ -1,25 +1,175 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Reproducible Research"
+author: "Arturo German T"
+date: "12/9/2020"
+output: html_document
 ---
+Coursera
 
+In this documente I'm going to process the data available in [DATA](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip).
+First of all we are going to set the working directory to make sure that as long
+as the data exist in the same directory than the R file our code is going to run
+without problems:
 
-## Loading and preprocessing the data
+```{r Path, echo = TRUE}
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(lubridate)
+library(lattice)
+```
 
+Let´s now see the working directory of our R fil rightnow, to make sure it matches our file directory:
 
+```{r look for wd, echo = TRUE}
+getwd()
+```
 
-## What is mean total number of steps taken per day?
+As we see, the working directory in which we are working now is the same working
+directory where is saved or .R file, so go on with the analysis. In the next code chunk we are going to read the Data file from our directory, notice that we are 
+going to use meta directions to do so(don't forget to save it in a variable in this example is called "data"):
 
+```{r read csv, echo = TRUE}
+data <- read.csv("./activity.csv", sep = ",")
+```
 
+Now, I broadly recommend to change te class of the date variable to a Date Class, because is more easy to use. To do that we are going to use the functión as.POSIXct() as below:
 
-## What is the average daily activity pattern?
+```{r Date class, echo = TRUE}
+data$date <- as.POSIXct(data$date)
+```
 
+We can see, after run the last chunk of code that our date variable is now of class date, you can confirm it by using the function class() with data$date, lets do this in a quick example:
 
+```{r class, echo = TRUE}
+class(data$date)
+```
 
-## Imputing missing values
+But the Dataset is so big, you can see the dimensions of the dataset using the functión Dim():
 
+```{r dim, echo = T}
+dim(data)
+```
 
+17568 rows per 3 columns, it´s not a million rows but we can concentrate the data by grouping per day and sum all the steps counts for that day, we are going to do that now, don't forget to save the aggregated data in a new variable:
 
-## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+spd <- aggregate(data$steps, by = list(data$date), sum)
+```
+
+Let's view the content of our new variable "spd":
+
+```{r}
+spd
+```
+
+That's an improvement! only 61 rows per 2 columns! (we ommited the last column because it didn't have data that may concern us), but there is a mistake, I mean it's not a mistake but the variable names are changed and we may set better variable names for easy recognize them, so we're going to change the names of the variables:
+
+```{r}
+names(spd) <- c("Date", "Steps")
+```
+
+You can view the changes using names(data). 
+
+```{r}
+names(spd)
+```
+
+The first question of the project is What is mean total number of steps taken per day? and it ask us to plot an histogram of the total steps per day so we are going to do our first plot
+
+```{r}
+ggplot(spd, aes(x = Date, y = Steps)) + 
+                geom_histogram(binwidth = 1, stat = "identity") +
+                        xlab("Date")
+```
+
+and additionally it require us to calculate the mean and the median. I'm going to do that by using the agreggate function as I do for sum the steps per day.
+
+```{r}
+data3<- na.omit(data)
+meansteps <- aggregate(data$steps, by = list(data$date), mean)
+mediansteps <- aggregate(data3$steps, by = list(data3$date), median)
+stepscalc <- merge(meansteps, mediansteps, by = "Group.1")
+names(stepscalc) <- c("Date", "Mean", "Median")
+stepscalc
+```
+
+We´re going to move to the next question, What is the average daily activity pattern?, well, now we are going to use de Data dataset we created in the firsts steps and we are going to create a dataset aggregating per minute interval:
+
+```{r}
+data2 <- na.omit(data)
+intervals <- aggregate(data2$steps, by = list(data2$interval), mean)
+names(intervals) <- c("Interval", "AverageSteps")
+```
+
+With this data in "intervals" I'm going to make a time series plot to visualize which 5-minutes interval have the maximum number of steps:
+
+```{r}
+plot(intervals$Interval, intervals$AverageSteps, type = "l", ylab = "Average Steps", xlab = "5 Minutes Interval", main = "Average steps per 5 minutes interval")
+```
+
+So as we can notice in the plot the maximum number of steps is right between the interval 800 and 900.
+The third part of this reproducible research is about imputing missing values.We have records of 0 steps per day that I'm going to change for the average value for that day to fill the missing data. First of all we are going to determine which rows have missing data:
+```{r}
+sum(is.na(data$steps))
+nacols <- which(is.na(data$steps))
+subse <- data[nacols,]
+```
+There are 2304 rows with missing values that we'll have to fill with the mean data.
+```{r}
+uniques <- unique(data$date)
+for (i in 1:61) {
+        subse[which(subse[,2] == uniques[i]),1] <- if (is.na(meansteps[i, 2])){
+                0
+                } else if (meansteps[i, 2] == 0) {
+                0
+                } else if (meansteps[i, 2] > 0){
+                meansteps[i,2]
+                }
+}
+datafin <- data
+datafin[is.na(datafin[,1]),1] <- 0
+```
+As we can se, all the Na´s were replaced by 0's cause the days that have NA values only have that kind of value, so I think this is not going to change the graphs but lets see wath changes we discover:
+```{r}
+agro <- aggregate(datafin$steps, by = list(datafin$date), sum)
+names(agro) <- c("Date", "Steps")
+ggplot(agro, aes(x = Date, y = Steps)) + 
+                geom_histogram(binwidth = 1, stat = "identity") +
+                        xlab("Date")
+meansteps2 <- aggregate(datafin$steps, by = list(datafin$date), mean)
+mediansteps2 <- aggregate(datafin$steps, by = list(datafin$date), median)
+stepscalc2 <- merge(meansteps, mediansteps, by = "Group.1")
+names(stepscalc2) <- c("Date", "Mean", "Median")
+stepscalc2
+```
+
+We don't see any changes in the indicators that we have tested in this section.
+For the last part of this project we'll see if there are any activity patterns between weekdays and weekends
+
+```{r}
+datafin$date <- as.POSIXlt(datafin$date)
+weeks <- weekdays(datafin$date)
+weekdais <- c("lunes", "martes", "miércoles", "jueves", "viernes")
+weekens <- c("sábado", "domingo")
+weeks[which(weeks %in% weekdais)] <- "weekday"
+weeks[which(weeks %in% weekens)] <- "weekend"
+weekdata <- cbind(datafin, weeks)
+```
+
+The final plot is about the average steps per interval separated by weekdays and weekends:
+
+```{r}
+dpd <- aggregate(weekdata$steps, by = list(weekdata$interval, weekdata$weeks), mean)
+names(dpd) <- c("interval", "weeks", "mean")
+par(mfrow=c(2,1))
+plot(dpd$interval[dpd$weeks == c("weekday")], dpd$mean[dpd$weeks == c("weekday")], type = "l", xlab = "5 minute interval", ylab = "Average steps", main = "Weekdays")
+plot(dpd$interval[dpd$weeks == c("weekend")], dpd$mean[dpd$weeks == c("weekend")], type = "l", xlab = "5 minute interval", ylab = "Average steps", main = "Weekends")
+```
+
+As we can see there are clearly different conduct patterns in the weekends in contraste with the weekdays.
+
+Thank you for reading.
+
+Arturo German T.
